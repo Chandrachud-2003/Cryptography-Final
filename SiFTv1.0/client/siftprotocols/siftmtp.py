@@ -157,26 +157,26 @@ class SiFT_MTP:
 		self.peer_socket.sendall(encrypted_message)
 
 	# # builds and sends message of a given type using the provided payload
-	# def send_msg(self, msg_type, msg_payload):
+	def send_msg(self, msg_type, msg_payload):
 		
-	# 	# build message
-	# 	msg_size = self.size_msg_hdr + len(msg_payload)
-	# 	msg_hdr_len = msg_size.to_bytes(self.size_msg_hdr_len, byteorder='big')
-	# 	msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len
+		# build message
+		msg_size = self.size_msg_hdr + len(msg_payload)
+		msg_hdr_len = msg_size.to_bytes(self.size_msg_hdr_len, byteorder='big')
+		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len
 
-	# 	# DEBUG 
-	# 	if self.DEBUG:
-	# 		print('MTP message to send (' + str(msg_size) + '):')
-	# 		print('HDR (' + str(len(msg_hdr)) + '): ' + msg_hdr.hex())
-	# 		print('BDY (' + str(len(msg_payload)) + '): ')
-	# 		print(msg_payload.hex())
-	# 		print('------------------------------------------')
-	# 	# DEBUG 
+		# DEBUG 
+		if self.DEBUG:
+			print('MTP message to send (' + str(msg_size) + '):')
+			print('HDR (' + str(len(msg_hdr)) + '): ' + msg_hdr.hex())
+			print('BDY (' + str(len(msg_payload)) + '): ')
+			print(msg_payload.hex())
+			print('------------------------------------------')
+		# DEBUG 
 
-	# 	# try to send
-	# 	try:
-	# 		self.send_bytes(msg_hdr + msg_payload)
-	# 	except SiFT_MTP_Error as e:
-	# 		raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
+		# try to send
+		try:
+			self.send_bytes(msg_hdr + msg_payload)
+		except SiFT_MTP_Error as e:
+			raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
 
 
