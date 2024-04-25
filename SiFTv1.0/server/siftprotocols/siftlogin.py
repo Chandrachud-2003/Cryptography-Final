@@ -52,7 +52,7 @@ class SiFT_LOGIN:
 
     # builds a login response from a dictionary
     def build_login_res(self, login_res_struct):
-        login_res_str = login_res_struct['request_hash'].hex() 
+        login_res_str = login_res_struct['request_hash']
         login_res_str += self.delimiter + login_res_struct['server_random']
         return login_res_str.encode(self.coding)
 
@@ -127,8 +127,11 @@ class SiFT_LOGIN:
         login_res_struct = {}
         login_res_struct['request_hash'] = request_hash
          # Generate server_random
-        server_random = get_random_bytes(16).hex()
-        login_res_struct['server_random'] = server_random  # Store as hex string for transmission
+        server_random = get_random_bytes(16)
+        login_res_struct = {
+            'request_hash': request_hash.hex(),  # Convert to hex for transmission
+            'server_random': server_random.hex()
+        }
         msg_payload = self.build_login_res(login_res_struct)
 
 
@@ -142,7 +145,7 @@ class SiFT_LOGIN:
         # sending login response
         try:
             self.mtp.send_msg(self.mtp.type_login_res, msg_payload)
-            session_key = self.derive_session_key(login_req_struct['client_random'], server_random, request_hash)
+            session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
             self.mtp.set_session_key(session_key)
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login response --> ' + e.err_msg)
@@ -153,14 +156,15 @@ class SiFT_LOGIN:
         # DEBUG 
 
         # Send response
-        return login_req_struct['username'], server_random  # Return server_random for session key computation
+        return login_req_struct['username'], login_req_struct['client_random'], server_random.hex(), request_hash.hex()
+
 
 
     # handles login process (to be used by the client)
     def handle_login_client(self, username, password):
         # Generate random values and temporary AES key
         client_random = get_random_bytes(16).hex()
-        
+
         # building a login request
         login_req_struct = {}
         login_req_struct['timestamp'] = time.time_ns()
@@ -206,12 +210,23 @@ class SiFT_LOGIN:
         # processing login response
         login_res_struct = self.parse_login_res(msg_payload)
 
+        server_random = bytes.fromhex(login_res_struct['server_random'])
+        client_random = bytes.fromhex(client_random)  # Ensure client_random was stored as bytes or convert before use
+        session_key = HKDF(client_random + server_random, 32, salt=request_hash, hashmod=SHA256)
+        self.mtp.set_session_key(session_key)  # Apply the session key to the MTP protocol
+        
+
         # checking request_hash receiveid in the login response
         if login_res_struct['request_hash'] != request_hash:
             raise SiFT_LOGIN_Error('Verification of login response failed')
         
     def derive_session_key(self, client_random, server_random, request_hash):
-        # Assuming client_random, server_random, and request_hash are binary strings
+        # Convert hex strings back to bytes
+        client_random = bytes.fromhex(client_random)
+        server_random = bytes.fromhex(server_random)
+        request_hash = bytes.fromhex(request_hash)
+
+        # Concatenate random values and use HKDF to derive the session key
         combined = client_random + server_random
         session_key = HKDF(combined, 32, salt=request_hash, hashmod=SHA256)
         return session_key

@@ -1,6 +1,9 @@
 #python3
 
 import socket
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+from Crypto.Random import get_random_bytes
 
 class SiFT_MTP_Error(Exception):
 
@@ -8,9 +11,14 @@ class SiFT_MTP_Error(Exception):
         self.err_msg = err_msg
 
 class SiFT_MTP:
-	def __init__(self, peer_socket):
+	def __init__(self, peer_socket, aes_key=None, sequence_number=0):
 
 		self.DEBUG = True
+
+		# AES
+		self.aes_key = aes_key
+		self.sequence_number = sequence_number
+	
 		# --------- CONSTANTS ------------
 		self.version_major = 0
 		self.version_minor = 5
@@ -36,6 +44,46 @@ class SiFT_MTP:
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
+	def set_session_key(self, key):
+		"""
+        Set the session key for AES encryption/decryption.
+        This key should be derived using HKDF as previously outlined and set
+        both after login on the client and server sides.
+        """
+		self.aes_key = key
+
+	def encrypt_message(self, msg_type, plaintext):
+		cipher = AES.new(self.aes_key, AES.MODE_GCM)
+		nonce = cipher.nonce
+		ciphertext, tag = cipher.encrypt_and_digest(pad(plaintext, AES.block_size))
+		msg_len = 16 + len(ciphertext) + len(tag)  # header + payload + tag
+		msg_hdr = self.version + msg_type + msg_len.to_bytes(2, byteorder='big') + \
+                  self.sequence_number.to_bytes(2, byteorder='big') + nonce
+		self.sequence_number += 1
+		return msg_hdr + ciphertext + tag
+	
+
+	def decrypt_message(self, message):
+		if len(message) < 16:  # Check if the message is at least long enough for a header
+			raise SiFT_MTP_Error("Message too short to be valid")
+		version = message[:2]
+		msg_type = message[2:4]
+		msg_len = int.from_bytes(message[4:6], byteorder='big')
+		seq_number = int.from_bytes(message[6:8], byteorder='big')
+		nonce = message[8:16]
+		ciphertext_tag = message[16:]
+
+		if seq_number <= self.sequence_number:
+			raise SiFT_MTP_Error("Replay attack detected or message out of order")
+		
+		self.sequence_number = seq_number  # Update expected sequence number
+
+		cipher = AES.new(self.aes_key, AES.MODE_GCM, nonce=nonce)
+		try:
+			plaintext = unpad(cipher.decrypt(ciphertext_tag[:-16]), AES.block_size)
+			return msg_type, plaintext
+		except Exception as e:
+			raise SiFT_MTP_Error(f"Decryption failed: {str(e)}")
 
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
@@ -111,9 +159,12 @@ class SiFT_MTP:
 			self.peer_socket.sendall(bytes_to_send)
 		except:
 			raise SiFT_MTP_Error('Unable to send via peer socket')
+		
+	def send_message(self, msg_type, payload):
+		encrypted_message = self.encrypt_message(msg_type, payload.encode('utf-8'))
+		self.peer_socket.sendall(encrypted_message)
 
-
-	# builds and sends message of a given type using the provided payload
+	# # builds and sends message of a given type using the provided payload
 	def send_msg(self, msg_type, msg_payload):
 		
 		# build message
