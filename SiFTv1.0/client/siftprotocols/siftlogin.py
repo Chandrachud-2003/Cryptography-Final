@@ -98,6 +98,19 @@ class SiFT_LOGIN:
 
         login_req_struct = self.parse_login_req(msg_payload)
 
+        # Extract the timestamp and convert to integer
+        client_timestamp = int(login_req_struct['timestamp'])
+
+        # Get current server time in nanoseconds
+        server_time_ns = time.time_ns()
+
+        # Define the acceptance window in nanoseconds (e.g., ±1 second)
+        window_ns = 1 * 1e9 * 2  # 1 second in nanoseconds
+
+        # Check if the timestamp is within the acceptable window
+        if not (server_time_ns - window_ns <= client_timestamp <= server_time_ns + window_ns):
+            raise SiFT_LOGIN_Error('Timestamp out of acceptable range')
+
         # checking username and password
         if login_req_struct['username'] in self.server_users:
             if not self.check_password(login_req_struct['password'], self.server_users[login_req_struct['username']]):
