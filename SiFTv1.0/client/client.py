@@ -191,7 +191,7 @@ class SiFTShell(cmd.Cmd):
         sckt.close()
         return True
 
-def load_public_key(filepath="public.pem"):
+def load_public_key(filepath="test_pubkey.pem"):
     with open(filepath, "rb") as pub_file:
         return RSA.import_key(pub_file.read())
 
@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
     public_key = load_public_key()
     mtp = SiFT_MTP(sckt)
-    loginp = SiFT_LOGIN(mtp, public_key)
+    loginp = SiFT_LOGIN(mtp)
 
     print()
     username = input('   Username: ')
