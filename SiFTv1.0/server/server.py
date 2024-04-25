@@ -22,7 +22,7 @@ class Server:
         self.server_rootdir = './users/'
         self.server_ip = socket.gethostbyname('localhost')
         # self.server_ip = socket.gethostbyname(socket.gethostname())
-        self.server_port = 5150
+        self.server_port = 5151
         # -------------------------------------------------------------
         self.server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.server_socket.bind((self.server_ip, self.server_port))
@@ -67,7 +67,10 @@ class Server:
         loginp.set_server_users(users)
 
         try:
-            user = loginp.handle_login_server()
+            user, server_random = loginp.handle_login_server()
+            # client_random = login_req_struct['client_random']  # Assume client_random is saved from the request
+            # session_key = self.compute_session_key(server_random, client_random, request_hash)
+            # self.mtp.set_aes_key(session_key)  # Assuming a method to set the AES key in SiFT_MTP
         except SiFT_LOGIN_Error as e:
             print('SiFT_LOGIN_Error: ' + e.err_msg)
             print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
@@ -86,6 +89,17 @@ class Server:
                 print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
                 client_socket.close()
                 return
+            
+    def compute_session_key(server_random, client_random, request_hash):
+        # Convert hex strings back to bytes if stored as hex
+        server_random = bytes.fromhex(server_random)
+        client_random = bytes.fromhex(client_random)
+        request_hash = bytes.fromhex(request_hash)
+
+        # Concatenate random values and use HKDF to derive the session key
+        initial_key_material = server_random + client_random
+        session_key = HKDF(initial_key_material, 32, salt=request_hash, hashmod=SHA256)
+        return session_key
 
 
 # main

@@ -44,6 +44,14 @@ class SiFT_MTP:
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
+	def set_session_key(self, key):
+		"""
+        Set the session key for AES encryption/decryption.
+        This key should be derived using HKDF as previously outlined and set
+        both after login on the client and server sides.
+        """
+		self.aes_key = key
+
 	def encrypt_message(self, msg_type, plaintext):
 		cipher = AES.new(self.aes_key, AES.MODE_GCM)
 		nonce = cipher.nonce
