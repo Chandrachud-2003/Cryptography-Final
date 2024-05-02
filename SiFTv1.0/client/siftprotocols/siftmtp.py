@@ -2,7 +2,8 @@
 
 import socket
 from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
 
 class SiFT_MTP_Error(Exception):
 
@@ -45,7 +46,6 @@ class SiFT_MTP:
 
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
-
 		parsed_msg_hdr, i = {}, 0
 		parsed_msg_hdr['ver'], i = msg_hdr[i:i+self.size_msg_hdr_ver], i+self.size_msg_hdr_ver 
 		parsed_msg_hdr['typ'], i = msg_hdr[i:i+self.size_msg_hdr_typ], i+self.size_msg_hdr_typ
@@ -133,9 +133,16 @@ class SiFT_MTP:
 		ranbytes = get_random_bytes(6)
 		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
 		# MAC field
-		aes_mac = AES.new(key= <<temp_key>>, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes)
+		# --- generate a fresh 32-byte random tk ---
+		_tk = get_random_bytes(32)
+		aes_mac = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes)
   		# enc msg payload
 		_epd, _mac = aes_mac.encrypt_and_digest(msg_payload)
+		# encrypt tk with RSA public key
+		key = RSA.importKey(open('test_pubkey.pem').read())
+		_ciphr = PKCS1_OAEP.new(key)
+		_etk = _ciphr.encrypt(_tk)
+  
 		# DEBUG 
 		if self.DEBUG:
 			print('MTP message to send (' + str(msg_size) + '):')
@@ -144,6 +151,8 @@ class SiFT_MTP:
 			print(_epd.hex())
 			print('MAC (' + str(len(_mac)) + '): ')
 			print(_mac.hex())
+			print('ETK (' + str(len(_etk)) + '): ')
+			print(_etk.hex())
 			print('------------------------------------------')
 		# DEBUG 
 

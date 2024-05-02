@@ -213,7 +213,7 @@ class SiFT_LOGIN:
         server_random = bytes.fromhex(login_res_struct['server_random'])
         client_random = bytes.fromhex(client_random)  # Ensure client_random was stored as bytes or convert before use
         session_key = HKDF(client_random + server_random, 32, salt=request_hash, hashmod=SHA256)
-        self.mtp.set_session_key(session_key)  # Apply the session key to the MTP protocol
+        # self.mtp.set_session_key(session_key)  # Apply the session key to the MTP protocol
         
 
         # checking request_hash receiveid in the login response
