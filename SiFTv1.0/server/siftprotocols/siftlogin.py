@@ -85,13 +85,13 @@ class SiFT_LOGIN:
             msg_type, msg_payload = self.mtp.receive_msg()
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login request --> ' + e.err_msg)
-
+        
         # DEBUG 
         if self.DEBUG:
             print('Incoming payload (' + str(len(msg_payload)) + '):')
-            print(msg_payload[:max(512, len(msg_payload))].decode('utf-8'))
+            # print(msg_payload[:max(512, len(msg_payload))].decode('utf-8'))
             print('------------------------------------------')
-        # DEBUG 
+        # DEBUG a
 
         if msg_type != self.mtp.type_login_req:
             raise SiFT_LOGIN_Error('Login request expected, but received something else')

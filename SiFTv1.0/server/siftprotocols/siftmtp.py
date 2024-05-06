@@ -23,6 +23,8 @@ class SiFT_MTP:
 		self.size_msg_hdr_ver = 2
 		self.size_msg_hdr_typ = 2
 		self.size_msg_hdr_len = 2
+		self.size_mac = 12
+		self.size_etk = 256
 		self.type_login_req =    b'\x00\x00'
 		self.type_login_res =    b'\x00\x10'
 		self.type_command_req =  b'\x01\x00'
@@ -56,7 +58,8 @@ class SiFT_MTP:
 		parsed_msg_hdr, i = {}, 0
 		parsed_msg_hdr['ver'], i = msg_hdr[i:i+self.size_msg_hdr_ver], i+self.size_msg_hdr_ver 
 		parsed_msg_hdr['typ'], i = msg_hdr[i:i+self.size_msg_hdr_typ], i+self.size_msg_hdr_typ
-		parsed_msg_hdr['len'] = msg_hdr[i:i+self.size_msg_hdr_len]
+		parsed_msg_hdr['len'], i = msg_hdr[i:i+self.size_msg_hdr_len], i+self.size_msg_hdr_len
+		parsed_msg_hdr['sqn'] = msg_hdr[i:i+2]
 		return parsed_msg_hdr
 
 
@@ -79,7 +82,6 @@ class SiFT_MTP:
 
 	# receives and parses message, returns msg_type and msg_payload
 	def receive_msg(self):
-
 		try:
 			msg_hdr = self.receive_bytes(self.size_msg_hdr)
 		except SiFT_MTP_Error as e:
@@ -130,8 +132,8 @@ class SiFT_MTP:
 	def send_msg(self, msg_type, msg_payload):
 		# build message
 		# __len__
-		msg_size = self.size_msg_hdr + len(msg_payload)
-		msg_hdr_len = msg_size.to_bytes(self.size_msg_hdr_len, byteorder='big')
+		msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac + self.size_etk
+		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 		# __sqn__
 		_sqn = self.sequence.to_bytes(2,byteorder='big')
 		# ---increase sequence by 1 each---
@@ -146,7 +148,7 @@ class SiFT_MTP:
   		# enc msg payload
 		_epd, _mac = aes_mac.encrypt_and_digest(msg_payload)
 		# encrypt tk with RSA public key
-		key = RSA.importKey(open('test_keypair.pem').read())
+		key = RSA.importKey(open('test_pubkey.pem').read())
 		_ciphr = PKCS1_OAEP.new(key)
 		_etk = _ciphr.encrypt(_tk)
   
@@ -165,7 +167,7 @@ class SiFT_MTP:
 
 		# try to send
 		try:
-			self.send_bytes(msg_hdr + msg_payload)
+			self.send_bytes(msg_hdr + _epd + _mac + _etk)
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
    
