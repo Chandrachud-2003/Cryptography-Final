@@ -25,7 +25,7 @@ class SiFTShell(cmd.Cmd):
     prompt = '(sift) '
     file = None
 
-    # ----- commands -----
+    # ----- commands ----- -> All the command protocols list are the same in specificaiton 0.5 and 1.0
     def do_pwd(self, arg):
         'Print current working directory on the server: pwd'
 

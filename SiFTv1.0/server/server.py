@@ -89,7 +89,8 @@ class Server:
                 print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
                 client_socket.close()
                 return
-            
+
+    # session key computation lines up with SiFTv1.0 command protocol processing and pre processing specifications    
     def compute_session_key(self, server_random, client_random, request_hash):
         # Convert hex strings back to bytes if stored as hex
         server_random = bytes.fromhex(server_random)
