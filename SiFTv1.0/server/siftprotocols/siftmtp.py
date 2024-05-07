@@ -127,12 +127,16 @@ class SiFT_MTP:
 			encrypted_payload = self.receive_bytes(msg_len - self.size_msg_hdr)
 			_epd, _mac, _etk = self.split_encrypted_parts(encrypted_payload)  # Split correctly based on your message format
 
+
+			# AES-GCM Decryption
+			print('receive_msg Decrypting message with key:', _tk.hex())
+			print('receive_msg Nonce:', parsed_msg_hdr['nonce'])
+
 			# Decrypting the AES key
 			private_rsa_key = RSA.importKey(open('test_keypair.pem').read(),passphrase='crysys')
 			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
 			_tk = rsa_cipher.decrypt(_etk)
 
-			# AES-GCM Decryption
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['nonce'])
 			msg_body = aes_gcm.decrypt_and_verify(_epd, _mac)
 		except SiFT_MTP_Error as e:
@@ -198,11 +202,24 @@ class SiFT_MTP:
       	# # Generate a fresh 6-byte random value for each message
 		# ranbytes = get_random_bytes(6)
 		# msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
+
+		# __sqn__
+		_sqn = self.sequence.to_bytes(2,byteorder='big')
+
+		# __rnd__
+      	# Generate a fresh 6-byte random value for each message
+		ranbytes = get_random_bytes(6)
 		
 		# MAC field
 		# --- generate a fresh 32-byte random tk ---
 		_tk = get_random_bytes(32)
 		aes_mac = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
+		
+		# Logging the key and nonce for debugging
+		print('send_msg Generated key:', _tk.hex())
+		print('send_msg Nonce:', (_sqn+ranbytes).hex())
+
+		# print
   		# enc msg payload
 		_epd, _mac = aes_mac.encrypt_and_digest(msg_payload) # Encrypt and generate MAC
 
@@ -225,15 +242,10 @@ class SiFT_MTP:
 		msg_size = self.size_msg_hdr + + len(_epd) + len(_mac) + len(_etk)
 		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
-		# __sqn__
-		_sqn = self.sequence.to_bytes(2,byteorder='big')
 
 		# ---increase sequence by 1 each---
 		self.sequence += 1
 
-		# __rnd__
-      	# Generate a fresh 6-byte random value for each message
-		ranbytes = get_random_bytes(6)
 		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
   
 		# DEBUG 
