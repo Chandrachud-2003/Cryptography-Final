@@ -95,7 +95,6 @@ class SiFT_MTP:
 		parsed_msg_hdr = self.parse_msg_header(msg_hdr)
 
 		# Implement proper management of the sequence number (sqn). Sequence numbers should increment with each message and must be checked to ensure messages are received in the correct order and to protect against replay attacks.
-
 		# Validate sequence number
 		if 'last_received_seq' not in dir(self):
 			self.last_received_seq = -1
@@ -109,9 +108,7 @@ class SiFT_MTP:
 
 		# Ensure that the version (ver) is checked against the expected version 01 00 for all incoming messages. Current implementation does not verify if the received version matches the expected protocol version.
 
-		expected_version = b'\x01\x00'
-
-		if parsed_msg_hdr['ver'] != expected_version:
+		if parsed_msg_hdr['ver'] != self.msg_hdr_ver:
 			raise SiFT_MTP_Error('Unsupported version found in message header')
 
 		if parsed_msg_hdr['typ'] not in self.msg_types:
@@ -119,24 +116,19 @@ class SiFT_MTP:
 			return None  # Discard the message silently
 
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
-
-		
-
+		print(msg_len)
 		try:
+			print('---CHECKPOINT1')
 			# Extracting the encrypted parts
-			encrypted_payload = self.receive_bytes(msg_len - self.size_msg_hdr)
-			_epd, _mac, _etk = self.split_encrypted_parts(encrypted_payload)  # Split correctly based on your message format
-
-
-			# AES-GCM Decryption
-			print('receive_msg Decrypting message with key:', _tk.hex())
-			print('receive_msg Nonce:', parsed_msg_hdr['nonce'])
-
+			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk)
+			_mac = self.receive_bytes(self.size_mac)
+			_etk = self.receive_bytes(self.size_etk)
+			print('---CHECKPOINT2')
 			# Decrypting the AES key
 			private_rsa_key = RSA.importKey(open('test_keypair.pem').read(),passphrase='crysys')
 			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
 			_tk = rsa_cipher.decrypt(_etk)
-
+   
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['nonce'])
 			msg_body = aes_gcm.decrypt_and_verify(_epd, _mac)
 		except SiFT_MTP_Error as e:
@@ -192,17 +184,6 @@ class SiFT_MTP:
 		# msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac + self.size_etk
 		# msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
-		# # __sqn__
-		# _sqn = self.sequence.to_bytes(2,byteorder='big')
-
-		# # ---increase sequence by 1 each---
-		# self.sequence += 1
-
-		# # __rnd__
-      	# # Generate a fresh 6-byte random value for each message
-		# ranbytes = get_random_bytes(6)
-		# msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
-
 		# __sqn__
 		_sqn = self.sequence.to_bytes(2,byteorder='big')
 
@@ -214,10 +195,6 @@ class SiFT_MTP:
 		# --- generate a fresh 32-byte random tk ---
 		_tk = get_random_bytes(32)
 		aes_mac = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
-		
-		# Logging the key and nonce for debugging
-		print('send_msg Generated key:', _tk.hex())
-		print('send_msg Nonce:', (_sqn+ranbytes).hex())
 
 		# print
   		# enc msg payload
@@ -239,7 +216,7 @@ class SiFT_MTP:
   		# Message header and sequence number handling
 		# Calculate the total message size
         # header (16 bytes) + encrypted payload + MAC (12 bytes) + encrypted AES key (if applicable)
-		msg_size = self.size_msg_hdr + + len(_epd) + len(_mac) + len(_etk)
+		msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
 		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
 
