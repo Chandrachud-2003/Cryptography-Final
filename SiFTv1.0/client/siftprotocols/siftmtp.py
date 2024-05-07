@@ -120,10 +120,10 @@ class SiFT_MTP:
 		try:
 			print('---CHECKPOINT1')
 			# Extracting the encrypted parts
-			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk)
+			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk - self.size_msg_hdr)
 			_mac = self.receive_bytes(self.size_mac)
 			_etk = self.receive_bytes(self.size_etk)
-			print('---CHECKPOINT2')
+			print(len(_etk))
 			# Decrypting the AES key
 			private_rsa_key = RSA.importKey(open('test_keypair.pem').read(),passphrase='crysys')
 			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
