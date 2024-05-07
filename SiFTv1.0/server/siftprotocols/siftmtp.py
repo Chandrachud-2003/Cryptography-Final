@@ -128,8 +128,9 @@ class SiFT_MTP:
 			_epd, _mac, _etk = self.split_encrypted_parts(encrypted_payload)  # Split correctly based on your message format
 
 			# Decrypting the AES key
-			rsa_cipher = PKCS1_OAEP.new(self.private_rsa_key)
-			_tk = rsa_cipher.decrypt(_etk)
+			private_rsa_key = RSA.importKey(open('test_pubkey.pem').read())
+			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
+			_tk = rsa_cipher.decrypt(_etk,passkey='crysys')
 
 			# AES-GCM Decryption
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['nonce'])
