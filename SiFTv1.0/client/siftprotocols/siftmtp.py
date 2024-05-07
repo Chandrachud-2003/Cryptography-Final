@@ -61,7 +61,8 @@ class SiFT_MTP:
 		parsed_msg_hdr['ver'], i = msg_hdr[i:i+self.size_msg_hdr_ver], i+self.size_msg_hdr_ver 
 		parsed_msg_hdr['typ'], i = msg_hdr[i:i+self.size_msg_hdr_typ], i+self.size_msg_hdr_typ
 		parsed_msg_hdr['len'], i = msg_hdr[i:i+self.size_msg_hdr_len], i+self.size_msg_hdr_len
-		parsed_msg_hdr['sqn'] = msg_hdr[i:i+2]
+		parsed_msg_hdr['sqn'], i = msg_hdr[i:i+2], i+2
+		parsed_msg_hdr['ranbyte'] = msg_hdr[i:i+6]
 		return parsed_msg_hdr
 
 
@@ -116,7 +117,7 @@ class SiFT_MTP:
 			return None  # Discard the message silently
 
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
-		print(msg_len)
+		
 		try:
 			print('---CHECKPOINT1')
 			# Extracting the encrypted parts
@@ -124,12 +125,19 @@ class SiFT_MTP:
 			_mac = self.receive_bytes(self.size_mac)
 			_etk = self.receive_bytes(self.size_etk)
 			print(len(_etk))
-			# Decrypting the AES key
-			private_rsa_key = RSA.importKey(open('test_keypair.pem').read(),passphrase='crysys')
-			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
-			_tk = rsa_cipher.decrypt(_etk)
    
-			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['nonce'])
+			# Decrypting the AES key
+			with open('test_keypair.pem', 'rb') as f:
+				keypairstr = f.read()
+			private_rsa_key = RSA.import_key(keypairstr, passphrase='crysys')
+			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
+			try: 
+				_tk = rsa_cipher.decrypt(_etk)
+			except ValueError as e:
+				print('Decryption error', e)
+				return None
+			 
+			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
 			msg_body = aes_gcm.decrypt_and_verify(_epd, _mac)
 		except SiFT_MTP_Error as e:
 			print(f'Failed to decrypt or verify message: {str(e)}. Discarding.')
@@ -149,23 +157,6 @@ class SiFT_MTP:
 			raise SiFT_MTP_Error('Incomplete message body reveived')
 
 		return parsed_msg_hdr['typ'], msg_body
-	
-
-	def split_encrypted_parts(self, encrypted_payload):
-		"""
-        Splits the encrypted payload into encrypted data, MAC, and encrypted AES key.
-        Adjust indices based on your message structure and sizes.
-        """
-        # Sizes based on your cryptographic setup
-		size_mac = 12  # MAC length in bytes for AES-GCM
-		size_etk = 256  # Encrypted AES key length in bytes for RSA-OAEP with 2048-bit keys
-
-        # Assuming the MAC is at the end followed by the encrypted AES key
-		_etk = encrypted_payload[-size_etk:]  # Last 256 bytes are the RSA-encrypted AES key
-		_mac = encrypted_payload[-(size_mac + size_etk):-size_etk]  # Next 12 bytes before the ETK are the MAC
-		_epd = encrypted_payload[:-(size_mac + size_etk)]  # The rest is the encrypted payload
-
-		return _epd, _mac, _etk
 
 
 	# sends all bytes provided via the peer socket
@@ -203,14 +194,14 @@ class SiFT_MTP:
 		# Encrypt the temporary AES key using RSA-OAEP if required (only for login request)
 		_etk = b''
 		if use_temp_key:
-			key = RSA.importKey(open('test_pubkey.pem').read())
-			_ciphr = PKCS1_OAEP.new(key)
-			_etk = _ciphr.encrypt(_tk)
-		
-		# # encrypt tk with RSA public key
-		# key = RSA.importKey(open('test_pubkey.pem').read())
-		# _ciphr = PKCS1_OAEP.new(key)
-		# _etk = _ciphr.encrypt(_tk)
+			with open('test_pubkey.pem', 'rb') as f:
+				pubkeystr = f.read()
+			try:
+				key = RSA.import_key(pubkeystr)
+				_ciphr = PKCS1_OAEP.new(key)
+				_etk = _ciphr.encrypt(_tk)
+			except ValueError:
+				print('Error: Cannot import public key from file ' + 'test_pubkey.pem')
 
 		# __len__
   		# Message header and sequence number handling
