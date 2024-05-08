@@ -138,6 +138,10 @@ class SiFT_MTP:
 				return None
 			 
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
+			
+			# Update the AES-GCM cipher with the message header before decryption
+			aes_gcm.update(msg_hdr)
+		
 			msg_body = aes_gcm.decrypt_and_verify(_epd, _mac)
 		except SiFT_MTP_Error as e:
 			print(f'Failed to decrypt or verify message: {str(e)}. Discarding.')
@@ -185,11 +189,17 @@ class SiFT_MTP:
 		# MAC field
 		# --- generate a fresh 32-byte random tk ---
 		_tk = get_random_bytes(32)
-		aes_mac = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
+		aes_gcm = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
+
+		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
+
+
+		# Update AES-GCM cipher with the message header
+		aes_gcm.update(msg_hdr)
 
 		# print
   		# enc msg payload
-		_epd, _mac = aes_mac.encrypt_and_digest(msg_payload) # Encrypt and generate MAC
+		_epd, _mac = aes_gcm.encrypt_and_digest(msg_payload) # Encrypt and generate MAC
 
 		# Encrypt the temporary AES key using RSA-OAEP if required (only for login request)
 		_etk = b''
@@ -210,12 +220,6 @@ class SiFT_MTP:
 		msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
 		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
-
-		# ---increase sequence by 1 each---
-		self.sequence += 1
-
-		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
-  
 		# DEBUG 
 		if self.DEBUG:
 			print('MTP message to send (' + str(msg_size) + '):')
@@ -233,6 +237,8 @@ class SiFT_MTP:
 		try:
 			# Prepare full message
 			self.send_bytes(msg_hdr + _epd + _mac + _etk)
+			# ---increase sequence by 1 each---
+			self.sequence += 1
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
    
