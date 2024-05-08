@@ -191,8 +191,14 @@ class SiFT_MTP:
 		_tk = get_random_bytes(32)
 		aes_gcm = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
 
-		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
+		# __len__
+  		# Message header and sequence number handling
+		# Calculate the total message size
+        # header (16 bytes) + encrypted payload + MAC (12 bytes) + encrypted AES key (if applicable)
+		msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
+		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
+		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
 
 		# Update AES-GCM cipher with the message header
 		aes_gcm.update(msg_hdr)
@@ -212,13 +218,6 @@ class SiFT_MTP:
 				_etk = _ciphr.encrypt(_tk)
 			except ValueError:
 				print('Error: Cannot import public key from file ' + 'test_pubkey.pem')
-
-		# __len__
-  		# Message header and sequence number handling
-		# Calculate the total message size
-        # header (16 bytes) + encrypted payload + MAC (12 bytes) + encrypted AES key (if applicable)
-		msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
-		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
 		# DEBUG 
 		if self.DEBUG:
