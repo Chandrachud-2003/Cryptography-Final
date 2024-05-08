@@ -95,6 +95,10 @@ class SiFT_MTP:
 		
 		parsed_msg_hdr = self.parse_msg_header(msg_hdr)
 
+		# Printing msg_hdr and len of msg_hdr
+		print("msg_hdr: ", msg_hdr.hex())
+		print("len_msg_hdr: ", len(msg_hdr))
+
 		# Implement proper management of the sequence number (sqn). Sequence numbers should increment with each message and must be checked to ensure messages are received in the correct order and to protect against replay attacks.
 		# Validate sequence number
 		if 'last_received_seq' not in dir(self):
@@ -124,7 +128,14 @@ class SiFT_MTP:
 			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk - self.size_msg_hdr)
 			_mac = self.receive_bytes(self.size_mac)
 			_etk = self.receive_bytes(self.size_etk)
-			print(len(_etk))
+
+			# PRinting the epd, mac and etk and their lengths
+			print("_epd: ", _epd.hex())
+			print("len_epd: ", len(_epd))
+			print("_mac: ", _mac.hex())
+			print("len_mac: ", len(_mac))
+			print("_etk: ", _etk.hex())
+			print("len_etk: ", len(_etk))
    
 			# Decrypting the AES key
 			with open('test_keypair.pem', 'rb') as f:
@@ -138,6 +149,10 @@ class SiFT_MTP:
 				return None
 			 
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
+
+			# Printing the nonce and its length
+			print("nonce: ", (parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']).hex())
+			print("len_nonce: ", len(parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']))
 			
 			# Update the AES-GCM cipher with the message header before decryption
 			aes_gcm.update(msg_hdr)
@@ -174,34 +189,39 @@ class SiFT_MTP:
 	# builds and sends message of a given type using the provided payload
 	def send_msg(self, msg_type, msg_payload, use_temp_key=False):
 		# build message
-  
-		# # __len__
-		# msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac + self.size_etk
-		# msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
 		# __sqn__
 		_sqn = self.sequence.to_bytes(2,byteorder='big')
+		self.sequence += 1  # Ensure sequence number is incremented before message construction
 
 		# __rnd__
       	# Generate a fresh 6-byte random value for each message
 		ranbytes = get_random_bytes(6)
+
+		# __len__
+  		# Message header and sequence number handling
+		# Calculate the total message size
+        # header (16 bytes) + encrypted payload + MAC (12 bytes) + encrypted AES key (if applicable)
+		# msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
+		msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac + (self.size_etk if use_temp_key else 0)
+
+		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
+
+		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
 		
 		# MAC field
 		# --- generate a fresh 32-byte random tk ---
 		_tk = get_random_bytes(32)
 		aes_gcm = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
 
-		# __len__
-  		# Message header and sequence number handling
-		# Calculate the total message size
-        # header (16 bytes) + encrypted payload + MAC (12 bytes) + encrypted AES key (if applicable)
-		msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
-		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
+		aes_gcm.update(msg_hdr)  # Add message header as AAD
 
-		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
+		# Printing the nonce and its length
+		print("nonce: ", (_sqn+ranbytes).hex())
+		print("len_nonce: ", len(_sqn+ranbytes))
 
 		# Update AES-GCM cipher with the message header
-		aes_gcm.update(msg_hdr)
+		# aes_gcm.update(self.msg_hdr_ver + msg_type + b'\x00\x00' + _sqn + ranbytes + self.reserve_bytes)  # Placeholder for length
 
 		# print
   		# enc msg payload
@@ -218,7 +238,7 @@ class SiFT_MTP:
 				_etk = _ciphr.encrypt(_tk)
 			except ValueError:
 				print('Error: Cannot import public key from file ' + 'test_pubkey.pem')
-
+		
 		# DEBUG 
 		if self.DEBUG:
 			print('MTP message to send (' + str(msg_size) + '):')
@@ -236,8 +256,6 @@ class SiFT_MTP:
 		try:
 			# Prepare full message
 			self.send_bytes(msg_hdr + _epd + _mac + _etk)
-			# ---increase sequence by 1 each---
-			self.sequence += 1
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
    
