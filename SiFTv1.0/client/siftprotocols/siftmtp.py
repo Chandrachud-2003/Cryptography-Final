@@ -4,6 +4,9 @@ import socket
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
+from Crypto.Protocol.KDF import HKDF
+from Crypto.Hash import SHA256
+
 
 class SiFT_MTP_Error(Exception):
 
@@ -45,6 +48,8 @@ class SiFT_MTP:
 						  self.type_dnload_req, self.type_dnload_res_0, self.type_dnload_res_1)
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
+		self.aes_key = None
+		self.temp_aes_key = None
 		
 
 	def set_session_key(self, key):
@@ -136,7 +141,7 @@ class SiFT_MTP:
 		if parsed_msg_hdr['typ'] not in self.msg_types:
 			print(f'Unknown message type {parsed_msg_hdr["typ"]}. Discarding.')
 			return None  # Discard the message silently
-
+		
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
 		
 		try:
@@ -144,38 +149,55 @@ class SiFT_MTP:
 
 			# Extracting the encrypted parts
 			print("Receiving the encrypted parts")
-			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk - self.size_msg_hdr)
+			_epd = self.receive_bytes(msg_len - self.size_mac - (self.size_etk if self.aes_key is None else 0) - self.size_msg_hdr)
 			print("_epd received")
 			_mac = self.receive_bytes(self.size_mac)
 			print("_mac received")
-			_etk = self.receive_bytes(self.size_etk)
-			print("_etk received")
 
 			# PRinting the epd, mac and etk and their lengths
 			print("_epd: ", _epd.hex())
 			print("len_epd: ", len(_epd))
 			print("_mac: ", _mac.hex())
 			print("len_mac: ", len(_mac))
-			print("_etk: ", _etk.hex())
-			print("len_etk: ", len(_etk))
-   
-			# Decrypting the AES key
-			print('decrypting the AES key')
-			with open('test_keypair.pem', 'rb') as f:
-				keypairstr = f.read()
-			private_rsa_key = RSA.import_key(keypairstr, passphrase='crysys')
-			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
-			try: 
-				_tk = rsa_cipher.decrypt(_etk)
-				print('AES key decrypted')
-			except ValueError as e:
-				print('Decryption error', e)
-				return None
-						 
+
+			_tk = b''
+			_etk = b''
+
+			if self.aes_key is None:	
+				print('No session key, getting _etk')
+				_etk = self.receive_bytes(self.size_etk)
+				print("_etk received")
+
+				print("_etk: ", _etk.hex())
+				print("len_etk: ", len(_etk))
+	
+				# Decrypting the AES key
+				print('decrypting the AES key')
+				with open('test_keypair.pem', 'rb') as f:
+					keypairstr = f.read()
+				private_rsa_key = RSA.import_key(keypairstr, passphrase='crysys')
+				rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
+				try: 
+					_tk = rsa_cipher.decrypt(_etk)
+					print('AES key decrypted')
+					self.aes_key = _tk
+					print("AES Key set to _etk decrypted value")
+				except ValueError as e:
+					print('Decryption error', e)
+					return None	
+			else:
+				_tk = self.aes_key
+				print("AES Key set to self.aes_key")
+
+			# Printing the self.aes_key and its length
+			print("aes_key for decryption: ", self.aes_key.hex())
+			print("len_aes_key for decryption: ", len(self.aes_key))
+
+			print("aes_gcm constructing")
+			 
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, mac_len=12, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
 
 			print("aes_gcm constructed")
-
 
 			# Printing the nonce and its length
 			print("nonce: ", (parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']).hex())
@@ -191,8 +213,12 @@ class SiFT_MTP:
 			
 			# Update the AES-GCM cipher with the message header before decryption
 			aes_gcm.update(msg_hdr)
+
+			print("aes_gcm updated")
 		
 			msg_body = aes_gcm.decrypt_and_verify(_epd, _mac)
+
+			print("aes_gcm decrypted and verified")
 		except SiFT_MTP_Error as e:
 			print(f'Failed to decrypt or verify message: {str(e)}. Discarding.')
 			return None  # Discard the message silently on decryption or MAC verification failure
@@ -219,7 +245,7 @@ class SiFT_MTP:
 		
 		# Printing the message type and the message body
 		print('msg_type: ', parsed_msg_hdr['typ'])
-		print('msg_body: ', msg_body)
+		print('msg_body: ', msg_body.hex())
 
 		return parsed_msg_hdr['typ'], msg_body
 
@@ -249,15 +275,31 @@ class SiFT_MTP:
 		# Calculate the total message size
         # header (16 bytes) + encrypted payload + MAC (12 bytes) + encrypted AES key (if applicable)
 		# msg_size = self.size_msg_hdr + len(_epd) + len(_mac) + len(_etk)
-		msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac + (self.size_etk if use_temp_key else 0)
+		msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac + (self.size_etk if (use_temp_key and self.aes_key is None) else 0)
 
 		msg_hdr_len = msg_size.to_bytes(2, byteorder='big')
 
 		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + _sqn + ranbytes + self.reserve_bytes
+
+		_tk = b''
 		
 		# MAC field
 		# --- generate a fresh 32-byte random tk ---
-		_tk = get_random_bytes(32)
+		if use_temp_key:
+			if 'aes_key' not in dir(self):
+				raise SiFT_MTP_Error('No session key variable available for creation')
+			if self.aes_key is None:
+				print('No session key, and use_temp_key - generating a new one')
+				self.aes_key = get_random_bytes(32)
+			_tk = self.aes_key
+		else:
+			if 'aes_key' not in dir(self) or self.aes_key is None:
+				raise SiFT_MTP_Error('No session key available for encryption')
+			_tk = self.aes_key
+
+		# Printing the self.aes_key and its length
+		print("aes_key: ", self.aes_key.hex())
+		print("len_aes_key: ", len(self.aes_key))
 
 		# Printing the tk and its length
 		print("_tk: ", _tk.hex())
@@ -284,7 +326,7 @@ class SiFT_MTP:
 
 		# Encrypt the temporary AES key using RSA-OAEP if required (only for login request)
 		_etk = b''
-		if use_temp_key:
+		if use_temp_key and msg_type == self.type_login_req:
 			with open('test_pubkey.pem', 'rb') as f:
 				pubkeystr = f.read()
 			try:
@@ -293,7 +335,9 @@ class SiFT_MTP:
 				_etk = _ciphr.encrypt(_tk)
 			except ValueError:
 				print('Error: Cannot import public key from file ' + 'test_pubkey.pem')
-		
+		else:
+			_etk = b''
+
 		# DEBUG 
 		if self.DEBUG:
 			print('MTP message to send (' + str(msg_size) + '):')
@@ -313,4 +357,10 @@ class SiFT_MTP:
 			self.send_bytes(msg_hdr + _epd + _mac + _etk)
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
-   
+		
+	# Function to reset the sequence number
+	def reset_sequence(self):
+		self.sequence = 1
+		self.last_received_seq = -1
+		
+	
