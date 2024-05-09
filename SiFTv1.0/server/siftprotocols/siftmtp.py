@@ -94,6 +94,11 @@ class SiFT_MTP:
 			raise SiFT_MTP_Error('Incomplete message header received')
 		
 		parsed_msg_hdr = self.parse_msg_header(msg_hdr)
+		expected_length = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')  # total message length expected
+
+		# Printing out the expected length and the actual payload length
+		print("expected_length: ", expected_length)
+
 
 		# Printing msg_hdr and len of msg_hdr
 		print("msg_hdr: ", msg_hdr.hex())
@@ -184,7 +189,15 @@ class SiFT_MTP:
 			print('------------------------------------------')
 		# DEBUG 
 
-		if len(msg_body) != msg_len - self.size_msg_hdr: 
+		# PRinting out the length of msg_body, msg_len and size of msg_hdr and the length of mac and etk
+		print("len_msg_body: ", len(msg_body))
+		print("msg_len: ", msg_len)
+		print("size_msg_hdr: ", self.size_msg_hdr)
+		print("size_mac: ", self.size_mac)
+		print("size_etk: ", self.size_etk)
+
+
+		if len(msg_body) != msg_len - self.size_msg_hdr - len(_mac) - len(_etk): 
 			raise SiFT_MTP_Error('Incomplete message body reveived')
 		
 		# Printing the message type and the message body

@@ -149,7 +149,7 @@ class SiFT_LOGIN:
         try:
             self.mtp.send_msg(self.mtp.type_login_res, msg_payload)
             session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
-            self.mtp.set_new_session_key(session_key)
+            self.mtp.set_session_key(session_key)
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login response --> ' + e.err_msg)
 
