@@ -99,6 +99,10 @@ class SiFT_MTP:
 		print("msg_hdr: ", msg_hdr.hex())
 		print("len_msg_hdr: ", len(msg_hdr))
 
+		# Printing the parsed message header
+		print("parsed_msg_hdr: ", parsed_msg_hdr)
+		print('len_parsed_msg_hdr: ', len(parsed_msg_hdr))
+
 		# Implement proper management of the sequence number (sqn). Sequence numbers should increment with each message and must be checked to ensure messages are received in the correct order and to protect against replay attacks.
 		# Validate sequence number
 		if 'last_received_seq' not in dir(self):
@@ -148,11 +152,19 @@ class SiFT_MTP:
 				print('Decryption error', e)
 				return None
 			 
-			aes_gcm = AES.new(_tk, AES.MODE_GCM, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
+			aes_gcm = AES.new(_tk, AES.MODE_GCM, mac_len=12, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
 
 			# Printing the nonce and its length
 			print("nonce: ", (parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']).hex())
 			print("len_nonce: ", len(parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']))
+
+			# Printing out tk and its length
+			print("_tk: ", _tk.hex())
+			print("len_tk: ", len(_tk))
+
+			# Printing out AAD Value
+			print("AAD: ", msg_hdr.hex())
+			print("len_AAD: ", len(msg_hdr))
 			
 			# Update the AES-GCM cipher with the message header before decryption
 			aes_gcm.update(msg_hdr)
@@ -174,6 +186,10 @@ class SiFT_MTP:
 
 		if len(msg_body) != msg_len - self.size_msg_hdr: 
 			raise SiFT_MTP_Error('Incomplete message body reveived')
+		
+		# Printing the message type and the message body
+		print('msg_type: ', parsed_msg_hdr['typ'])
+		print('msg_body: ', msg_body)
 
 		return parsed_msg_hdr['typ'], msg_body
 
@@ -212,8 +228,17 @@ class SiFT_MTP:
 		# MAC field
 		# --- generate a fresh 32-byte random tk ---
 		_tk = get_random_bytes(32)
+
+		# Printing the tk and its length
+		print("_tk: ", _tk.hex())
+		print("len_tk: ", len(_tk))
+
 		aes_gcm = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
 
+		# Printing out AAD
+		print("AAD: ", msg_hdr.hex())
+		print("len_AAD: ", len(msg_hdr))
+		
 		aes_gcm.update(msg_hdr)  # Add message header as AAD
 
 		# Printing the nonce and its length

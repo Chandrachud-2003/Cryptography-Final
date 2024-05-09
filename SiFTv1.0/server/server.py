@@ -22,7 +22,7 @@ class Server:
         self.server_rootdir = './users/'
         self.server_ip = socket.gethostbyname('localhost')
         # self.server_ip = socket.gethostbyname(socket.gethostname())
-        self.server_port = 5151
+        self.server_port = 5150
         # -------------------------------------------------------------
         self.server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.server_socket.bind((self.server_ip, self.server_port))

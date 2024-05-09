@@ -83,6 +83,9 @@ class SiFT_LOGIN:
         # trying to receive a login request
         try:
             msg_type, msg_payload = self.mtp.receive_msg()
+            # Printing the msg_type and msg_payload
+            print("msg_type: ", msg_type)
+            print("msg_payload: ", msg_payload)
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login request --> ' + e.err_msg)
         
@@ -121,7 +124,7 @@ class SiFT_LOGIN:
             if not self.check_password(login_req_struct['password'], self.server_users[login_req_struct['username']]):
                 raise SiFT_LOGIN_Error('Password verification failed')
         else:
-            raise SiFT_LOGIN_Error('Unkown user attempted to log in')
+            raise SiFT_LOGIN_Error('Unknown user attempted to log in')
 
         # building login response
         login_res_struct = {}
@@ -194,6 +197,9 @@ class SiFT_LOGIN:
         # trying to receive a login response
         try:
             msg_type, msg_payload = self.mtp.receive_msg()
+            # Printing the msg_type and msg_payload
+            print("msg_type: ", msg_type)
+            print("msg_payload: ", msg_payload)
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login response --> ' + e.err_msg)
 
@@ -212,7 +218,8 @@ class SiFT_LOGIN:
 
         server_random = bytes.fromhex(login_res_struct['server_random'])
         client_random = bytes.fromhex(client_random)  # Ensure client_random was stored as bytes or convert before use
-        session_key = HKDF(client_random + server_random, 32, salt=request_hash, hashmod=SHA256)
+        # session_key = HKDF(client_random + server_random, 32, salt=request_hash, hashmod=SHA256)
+        session_key = self.derive_session_key(login_req_struct['client_random'], server_random, request_hash.hex())
         self.mtp.set_new_session_key(session_key)  # Apply the session key to the MTP protocol
         
 
