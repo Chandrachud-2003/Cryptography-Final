@@ -196,7 +196,6 @@ class SiFT_MTP:
 		print("size_mac: ", self.size_mac)
 		print("size_etk: ", self.size_etk)
 
-
 		if len(msg_body) != msg_len - self.size_msg_hdr - len(_mac) - len(_etk): 
 			raise SiFT_MTP_Error('Incomplete message body reveived')
 		

@@ -133,6 +133,7 @@ class SiFT_MTP:
 		
 		try:
 			print('---CHECKPOINT1')
+			
 			# Extracting the encrypted parts
 			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk - self.size_msg_hdr)
 			_mac = self.receive_bytes(self.size_mac)
@@ -195,7 +196,6 @@ class SiFT_MTP:
 		print("size_msg_hdr: ", self.size_msg_hdr)
 		print("size_mac: ", self.size_mac)
 		print("size_etk: ", self.size_etk)
-
 
 		if len(msg_body) != msg_len - self.size_msg_hdr - len(_mac) - len(_etk): 
 			raise SiFT_MTP_Error('Incomplete message body reveived')

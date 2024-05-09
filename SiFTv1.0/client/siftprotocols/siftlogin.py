@@ -222,7 +222,6 @@ class SiFT_LOGIN:
         session_key = self.derive_session_key(login_req_struct['client_random'], server_random, request_hash.hex())
         self.mtp.set_new_session_key(session_key)  # Apply the session key to the MTP protocol
         
-
         # checking request_hash receiveid in the login response
         if login_res_struct['request_hash'] != request_hash:
             raise SiFT_LOGIN_Error('Verification of login response failed')

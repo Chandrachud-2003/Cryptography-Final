@@ -150,6 +150,7 @@ class SiFT_LOGIN:
             self.mtp.send_msg(self.mtp.type_login_res, msg_payload)
             session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
             self.mtp.set_session_key(session_key)
+            print("sent login response")
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login response --> ' + e.err_msg)
 
@@ -176,6 +177,8 @@ class SiFT_LOGIN:
         login_req_struct['client_random'] = client_random
         msg_payload = self.build_login_req(login_req_struct)
 
+        print("Built login request")
+
         # DEBUG 
         if self.DEBUG:
             print('Outgoing payload (' + str(len(msg_payload)) + '):')
@@ -186,6 +189,7 @@ class SiFT_LOGIN:
         # trying to send login request
         try:
             self.mtp.send_msg(self.mtp.type_login_req, msg_payload, use_temp_key=True)
+            print("Sent login request")
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login request --> ' + e.err_msg)
 
@@ -194,8 +198,11 @@ class SiFT_LOGIN:
         hash_fn.update(msg_payload)
         request_hash = hash_fn.digest()
 
+        print("Computed request hash: ", request_hash.hex())
+
         # trying to receive a login response
         try:
+            print("Trying to receive login response")
             msg_type, msg_payload = self.mtp.receive_msg()
             # Printing the msg_type and msg_payload
             print("msg_type: ", msg_type)
