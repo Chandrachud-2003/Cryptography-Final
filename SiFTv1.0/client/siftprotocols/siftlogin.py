@@ -155,7 +155,7 @@ class SiFT_LOGIN:
         # sending login response
         print("Trying to send login response")
         try:
-            self.mtp.send_msg(self.mtp.type_login_res, msg_payload)
+            self.mtp.send_msg(self.mtp.type_login_res, msg_payload, use_temp_key=True)
             print("Login response sent successfully")
             # Derive session key and apply it to the MTP protocol
             session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
