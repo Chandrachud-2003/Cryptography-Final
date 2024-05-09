@@ -85,33 +85,39 @@ class SiFT_MTP:
 
 	# receives and parses message, returns msg_type and msg_payload
 	def receive_msg(self):
+
+		print("Receiving message")
+
 		try:
 			msg_hdr = self.receive_bytes(self.size_msg_hdr)
+			print("Message header received")
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to receive message header --> ' + e.err_msg)
 
 		if len(msg_hdr) != self.size_msg_hdr: 
 			raise SiFT_MTP_Error('Incomplete message header received')
 		
+		print("Parsing the message header")
+		
 		parsed_msg_hdr = self.parse_msg_header(msg_hdr)
+
+		print("Message header parsed")
+
 		expected_length = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')  # total message length expected
 
 		# Printing out the expected length and the actual payload length
 		print("expected_length: ", expected_length)
 
-
 		# Printing msg_hdr and len of msg_hdr
 		print("msg_hdr: ", msg_hdr.hex())
 		print("len_msg_hdr: ", len(msg_hdr))
-
-		# Printing the parsed message header
-		print("parsed_msg_hdr: ", parsed_msg_hdr)
-		print('len_parsed_msg_hdr: ', len(parsed_msg_hdr))
 
 		# Implement proper management of the sequence number (sqn). Sequence numbers should increment with each message and must be checked to ensure messages are received in the correct order and to protect against replay attacks.
 		# Validate sequence number
 		if 'last_received_seq' not in dir(self):
 			self.last_received_seq = -1
+
+		print("Checking the sequence number")
 
 		received_seq = int.from_bytes(parsed_msg_hdr['sqn'], byteorder='big')
 		if received_seq <= self.last_received_seq:
@@ -119,6 +125,8 @@ class SiFT_MTP:
 			return None  # Discard the message silently
 
 		self.last_received_seq = received_seq
+
+		print("Sequence number checked and last_received_seq updated")
 
 		# Ensure that the version (ver) is checked against the expected version 01 00 for all incoming messages. Current implementation does not verify if the received version matches the expected protocol version.
 
@@ -133,11 +141,15 @@ class SiFT_MTP:
 		
 		try:
 			print('---CHECKPOINT1')
-			
+
 			# Extracting the encrypted parts
+			print("Receiving the encrypted parts")
 			_epd = self.receive_bytes(msg_len - self.size_mac - self.size_etk - self.size_msg_hdr)
+			print("_epd received")
 			_mac = self.receive_bytes(self.size_mac)
+			print("_mac received")
 			_etk = self.receive_bytes(self.size_etk)
+			print("_etk received")
 
 			# PRinting the epd, mac and etk and their lengths
 			print("_epd: ", _epd.hex())
@@ -148,17 +160,22 @@ class SiFT_MTP:
 			print("len_etk: ", len(_etk))
    
 			# Decrypting the AES key
+			print('decrypting the AES key')
 			with open('test_keypair.pem', 'rb') as f:
 				keypairstr = f.read()
 			private_rsa_key = RSA.import_key(keypairstr, passphrase='crysys')
 			rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
 			try: 
 				_tk = rsa_cipher.decrypt(_etk)
+				print('AES key decrypted')
 			except ValueError as e:
 				print('Decryption error', e)
 				return None
-			 
+						 
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, mac_len=12, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
+
+			print("aes_gcm constructed")
+
 
 			# Printing the nonce and its length
 			print("nonce: ", (parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']).hex())
