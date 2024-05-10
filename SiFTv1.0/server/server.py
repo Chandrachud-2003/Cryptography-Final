@@ -68,8 +68,6 @@ class Server:
 
         try:
             user, client_random, server_random, request_hash = loginp.handle_login_server()
-            session_key = self.compute_session_key(server_random, client_random, request_hash)
-            mtp.set_session_key(session_key)  # Ensure this method properly sets the AES key for encryption
 
         except SiFT_LOGIN_Error as e:
             print('SiFT_LOGIN_Error: ' + e.err_msg)

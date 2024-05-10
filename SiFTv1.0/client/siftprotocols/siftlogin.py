@@ -159,12 +159,18 @@ class SiFT_LOGIN:
             self.mtp.send_msg(self.mtp.type_login_res, msg_payload, use_temp_key = True) # Send the login response - no _etk for login response
             print("Login response sent successfully")
              # Derive session key and apply it to the MTP protocol
-            session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
+            client_random = bytes.fromhex(login_req_struct['client_random'])
+            session_key = self.derive_session_key(client_random.hex(), server_random.hex(), request_hash.hex())
             print("Session key derived successfully")
             self.mtp.set_session_key(session_key)
             print("Session key set successfully")
             self.mtp.reset_sequence()
             print("Sequence number reset successfully")
+            print("Session key set successfully")
+            print("Session Key - ", session_key.hex())
+            print("Server Random - ", server_random.hex())
+            print("Client Random - ", client_random.hex())
+            print("Request Hash - ", request_hash.hex())
 
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login response --> ' + e.err_msg)
@@ -176,7 +182,7 @@ class SiFT_LOGIN:
 
         # Send response
         print("Sent login response")
-        return login_req_struct['username'], login_req_struct['client_random'], server_random.hex(), request_hash.hex()
+        return login_req_struct['username'], client_random.hex(), server_random.hex(), request_hash.hex()
 
 
     # handles login process (to be used by the client)
@@ -250,6 +256,10 @@ class SiFT_LOGIN:
         session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
         self.mtp.set_session_key(session_key)  # Apply the session key to the MTP protocol
         print("Session key set successfully")
+        print("Session Key - ", session_key.hex())
+        print("Server Random - ", server_random.hex())
+        print("Client Random - ", client_random.hex())
+        print("Request Hash - ", request_hash.hex())
 
         # Resetting the sequence number
         self.mtp.reset_sequence()

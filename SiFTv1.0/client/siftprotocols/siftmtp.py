@@ -59,6 +59,7 @@ class SiFT_MTP:
         both after login on the client and server sides.
         """
 		self.aes_key = key
+		print("Session key set to: ", self.aes_key.hex())
   
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
