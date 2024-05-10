@@ -82,18 +82,14 @@ class SiFT_LOGIN:
 
         # trying to receive a login request
         try:
-            print("Trying to receive a login request")
             msg_type, msg_payload = self.mtp.receive_msg()
-            # Printing the msg_type and msg_payload
-            print("msg_type: ", msg_type)
-            print("msg_payload: ", msg_payload)
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login request --> ' + e.err_msg)
         
         # DEBUG 
         if self.DEBUG:
             print('Incoming payload (' + str(len(msg_payload)) + '):')
-            # print(msg_payload[:max(512, len(msg_payload))].decode('utf-8'))
+            print(msg_payload[:max(512, len(msg_payload))].decode('utf-8'))
             print('------------------------------------------')
         # DEBUG a
 
@@ -116,13 +112,9 @@ class SiFT_LOGIN:
         # Define the acceptance window in nanoseconds (e.g., ±1 second)
         window_ns = 1 * 1e9 * 2  # 1 second in nanoseconds
 
-        print("Checking if the timestamp is within the acceptable window")
-
         # Check if the timestamp is within the acceptable window
         if not (server_time_ns - window_ns <= client_timestamp <= server_time_ns + window_ns):
             raise SiFT_LOGIN_Error('Timestamp out of acceptable range')
-        
-        print("Checking if the username and password are correct")
 
         # checking username and password
         if login_req_struct['username'] in self.server_users:
@@ -130,8 +122,6 @@ class SiFT_LOGIN:
                 raise SiFT_LOGIN_Error('Password verification failed')
         else:
             raise SiFT_LOGIN_Error('Unknown user attempted to log in')
-        
-        print("Building login response")
 
         # building login response
         login_res_struct = {}
@@ -153,24 +143,13 @@ class SiFT_LOGIN:
         # DEBUG 
 
         # sending login response
-        print("Trying to send login response")
         try:
-            print("Sending login response")
             self.mtp.send_msg(self.mtp.type_login_res, msg_payload, use_temp_key = True) # Send the login response - no _etk for login response
-            print("Login response sent successfully")
              # Derive session key and apply it to the MTP protocol
             client_random = bytes.fromhex(login_req_struct['client_random'])
             session_key = self.derive_session_key(client_random.hex(), server_random.hex(), request_hash.hex())
-            print("Session key derived successfully")
             self.mtp.set_session_key(session_key)
-            print("Session key set successfully")
             self.mtp.reset_sequence()
-            print("Sequence number reset successfully")
-            print("Session key set successfully")
-            print("Session Key - ", session_key.hex())
-            print("Server Random - ", server_random.hex())
-            print("Client Random - ", client_random.hex())
-            print("Request Hash - ", request_hash.hex())
 
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login response --> ' + e.err_msg)
@@ -181,7 +160,6 @@ class SiFT_LOGIN:
         # DEBUG 
 
         # Send response
-        print("Sent login response")
         return login_req_struct['username'], login_req_struct['client_random'], server_random.hex(), request_hash.hex()
 
 
@@ -198,8 +176,6 @@ class SiFT_LOGIN:
         login_req_struct['client_random'] = client_random
         msg_payload = self.build_login_req(login_req_struct)
 
-        print("Built login request successfully")
-
         # DEBUG 
         if self.DEBUG:
             print('Outgoing payload (' + str(len(msg_payload)) + '):')
@@ -208,10 +184,8 @@ class SiFT_LOGIN:
         # DEBUG 
 
         # trying to send login request
-        print("Trying to send login request")
         try:
             self.mtp.send_msg(self.mtp.type_login_req, msg_payload, use_temp_key=True)
-            print("Login request sent successfully")
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to send login request --> ' + e.err_msg)
 
@@ -219,19 +193,12 @@ class SiFT_LOGIN:
         hash_fn = SHA256.new()
         hash_fn.update(msg_payload)
         request_hash = hash_fn.digest()
-
-        print("Computed hash of sent request payload successfully")
-
-        print("Trying to receive login response")
-
+        
         # trying to receive a login response
         try:
             # Setting the session key to the client random temporarily
             msg_type, msg_payload = self.mtp.receive_msg()
-            print("Login response received successfully")
-            # Printing the msg_type and msg_payload
-            print("msg_type: ", msg_type)
-            print("msg_payload: ", msg_payload)
+
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login response --> ' + e.err_msg)
 
@@ -245,34 +212,21 @@ class SiFT_LOGIN:
         if msg_type != self.mtp.type_login_res:
             raise SiFT_LOGIN_Error('Login response expected, but received something else')
 
-        # processing login response
-        print("Parsing login response")
         login_res_struct = self.parse_login_res(msg_payload)
-        print("Parsed login response successfully")
 
         server_random = bytes.fromhex(login_res_struct['server_random'])
         client_random = bytes.fromhex(client_random)  # Ensure client_random was stored as bytes or convert before use
         # session_key = HKDF(client_random + server_random, 32, salt=request_hash, hashmod=SHA256)
         session_key = self.derive_session_key(login_req_struct['client_random'], server_random.hex(), request_hash.hex())
         self.mtp.set_session_key(session_key)  # Apply the session key to the MTP protocol
-        print("Session key set successfully")
-        print("Session Key - ", session_key.hex())
-        print("Server Random - ", server_random.hex())
-        print("Client Random - ", client_random.hex())
-        print("Request Hash - ", request_hash.hex())
 
         # Resetting the sequence number
         self.mtp.reset_sequence()
-
-        print("Reset sequence number successfully")
-
-        print("Checking if the request hash received in the login response is the same as the one computed")
         
         # checking request_hash receiveid in the login response
         if login_res_struct['request_hash'] != request_hash:
             raise SiFT_LOGIN_Error('Verification of login response failed')
         
-        print("Login response verified successfully")
         
     def derive_session_key(self, client_random, server_random, request_hash):
         # Convert hex strings back to bytes

@@ -351,7 +351,7 @@ class SiFT_CMD:
 
         # lst
         elif cmd_req_struct['command'] == self.cmd_lst:
-            path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+            path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
             if os.path.exists(path):
                 dirlist_str = ''
                 with os.scandir(path) as dirlist:
@@ -374,7 +374,7 @@ class SiFT_CMD:
                     cmd_res_struct['result_1'] = self.res_failure
                     cmd_res_struct['result_2'] = 'Cannot change to directory outside of the user root directory'
                 else:
-                    path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir[:-1])
+                    path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir[:-1]).strip()
                     if not os.path.exists(path):
                         cmd_res_struct['result_1'] = self.res_failure
                         cmd_res_struct['result_2'] = 'Directory does not exist'
@@ -386,7 +386,7 @@ class SiFT_CMD:
                     cmd_res_struct['result_1'] = self.res_failure
                     cmd_res_struct['result_2'] = 'Directory name is empty, starts with . or contains unsupported characters'
                 else:
-                    path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+                    path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
                     if path[-1] == '/': path += dirname
                     else: path += '/' + dirname
                     if not os.path.exists(path):
@@ -403,7 +403,7 @@ class SiFT_CMD:
                 cmd_res_struct['result_1'] = self.res_failure
                 cmd_res_struct['result_2'] = 'Directory name is empty, starts with . or contains unsupported characters'
             else:
-                path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+                path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
                 if path[-1] == '/': path += dirname
                 else: path += '/' + dirname
                 if os.path.exists(path):
@@ -425,7 +425,7 @@ class SiFT_CMD:
                 cmd_res_struct['result_1'] = self.res_failure
                 cmd_res_struct['result_2'] = 'File name or directory name is empty, starts with . or contains unsupported characters'
             else:
-                path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+                path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
                 if path[-1] == '/': path += fdname
                 else: path += '/' + fdname
                 if not os.path.exists(path):
@@ -475,7 +475,7 @@ class SiFT_CMD:
                 cmd_res_struct['result_1'] = self.res_reject
                 cmd_res_struct['result_2'] = 'File name is empty, starts with . or contains unsupported characters'
             else:
-                path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+                path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
                 if path[-1] == '/': filepath = path + filename
                 else: filepath = path + '/' + filename
                 if not os.path.exists(filepath):
@@ -508,7 +508,7 @@ class SiFT_CMD:
         if not self.check_fdname(filename):
             raise SiFT_DNL_Error('File name is empty, starts with . or contains unsupported characters')
         else:
-            path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+            path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
             if not os.path.exists(path):
                 raise SiFT_UPL_Error('Operation failed due to local error on server')
             else:    
@@ -527,7 +527,7 @@ class SiFT_CMD:
         if not self.check_fdname(filename):
             raise SiFT_DNL_Error('File name is empty, starts with . or contains unsupported characters')
         else:
-            path = self.server_rootdir + self.user_rootdir + '/'.join(self.current_dir)
+            path = self.server_rootdir.strip() + self.user_rootdir.strip() + '/'.join(self.current_dir).strip()
             if path[-1] == '/': filepath = path + filename
             else: filepath = path + '/' + filename
             if not os.path.exists(filepath):

@@ -59,7 +59,6 @@ class SiFT_MTP:
         both after login on the client and server sides.
         """
 		self.aes_key = key
-		print("Session key set to: ", self.aes_key.hex())
   
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
@@ -91,39 +90,23 @@ class SiFT_MTP:
 
 	# receives and parses message, returns msg_type and msg_payload
 	def receive_msg(self):
-
-		print("Receiving message")
-
 		try:
 			msg_hdr = self.receive_bytes(self.size_msg_hdr)
-			print("Message header received")
+
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to receive message header --> ' + e.err_msg)
 
 		if len(msg_hdr) != self.size_msg_hdr: 
 			raise SiFT_MTP_Error('Incomplete message header received')
-		
-		print("Parsing the message header")
-		
+			
 		parsed_msg_hdr = self.parse_msg_header(msg_hdr)
 
-		print("Message header parsed")
-
 		expected_length = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')  # total message length expected
-
-		# Printing out the expected length and the actual payload length
-		print("expected_length: ", expected_length)
-
-		# Printing msg_hdr and len of msg_hdr
-		print("msg_hdr: ", msg_hdr.hex())
-		print("len_msg_hdr: ", len(msg_hdr))
 
 		# Implement proper management of the sequence number (sqn). Sequence numbers should increment with each message and must be checked to ensure messages are received in the correct order and to protect against replay attacks.
 		# Validate sequence number
 		if 'last_received_seq' not in dir(self):
 			self.last_received_seq = -1
-
-		print("Checking the sequence number")
 
 		received_seq = int.from_bytes(parsed_msg_hdr['sqn'], byteorder='big')
 		if received_seq <= self.last_received_seq:
@@ -131,8 +114,6 @@ class SiFT_MTP:
 			return None  # Discard the message silently
 
 		self.last_received_seq = received_seq
-
-		print("Sequence number checked and last_received_seq updated")
 
 		# Ensure that the version (ver) is checked against the expected version 01 00 for all incoming messages. Current implementation does not verify if the received version matches the expected protocol version.
 
@@ -146,80 +127,37 @@ class SiFT_MTP:
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
 		
 		try:
-			print('---CHECKPOINT1')
-
 			# Extracting the encrypted parts
-			print("Receiving the encrypted parts")
 			_epd = self.receive_bytes(msg_len - self.size_mac - (self.size_etk if self.aes_key is None else 0) - self.size_msg_hdr)
-			print("_epd received")
 			_mac = self.receive_bytes(self.size_mac)
-			print("_mac received")
-
-			# PRinting the epd, mac and etk and their lengths
-			print("_epd: ", _epd.hex())
-			print("len_epd: ", len(_epd))
-			print("_mac: ", _mac.hex())
-			print("len_mac: ", len(_mac))
-
+   
 			_tk = b''
 			_etk = b''
 
 			if self.aes_key is None:	
-				print('No session key, getting _etk')
 				_etk = self.receive_bytes(self.size_etk)
-				print("_etk received")
 
-				print("_etk: ", _etk.hex())
-				print("len_etk: ", len(_etk))
-	
 				# Decrypting the AES key
-				print('decrypting the AES key')
 				with open('test_keypair.pem', 'rb') as f:
 					keypairstr = f.read()
 				private_rsa_key = RSA.import_key(keypairstr, passphrase='crysys')
 				rsa_cipher = PKCS1_OAEP.new(private_rsa_key)
 				try: 
 					_tk = rsa_cipher.decrypt(_etk)
-					print('AES key decrypted')
 					self.aes_key = _tk
-					print("AES Key set to _etk decrypted value")
 				except ValueError as e:
 					print('Decryption error', e)
 					return None	
 			else:
 				_tk = self.aes_key
-				print("AES Key set to self.aes_key")
-
-			# Printing the self.aes_key and its length
-			print("aes_key for decryption: ", self.aes_key.hex())
-			print("len_aes_key for decryption: ", len(self.aes_key))
-
-			print("aes_gcm constructing")
 			 
 			aes_gcm = AES.new(_tk, AES.MODE_GCM, mac_len=12, nonce=parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte'])
-
-			print("aes_gcm constructed")
-
-			# Printing the nonce and its length
-			print("nonce: ", (parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']).hex())
-			print("len_nonce: ", len(parsed_msg_hdr['sqn']+parsed_msg_hdr['ranbyte']))
-
-			# Printing out tk and its length
-			print("_tk: ", _tk.hex())
-			print("len_tk: ", len(_tk))
-
-			# Printing out AAD Value
-			print("AAD: ", msg_hdr.hex())
-			print("len_AAD: ", len(msg_hdr))
 			
 			# Update the AES-GCM cipher with the message header before decryption
 			aes_gcm.update(msg_hdr)
-
-			print("aes_gcm updated")
 		
 			msg_body = aes_gcm.decrypt_and_verify(_epd, _mac)
-
-			print("aes_gcm decrypted and verified")
+   
 		except SiFT_MTP_Error as e:
 			print(f'Failed to decrypt or verify message: {str(e)}. Discarding.')
 			return None  # Discard the message silently on decryption or MAC verification failure
@@ -234,19 +172,8 @@ class SiFT_MTP:
 			print('------------------------------------------')
 		# DEBUG 
 
-		# PRinting out the length of msg_body, msg_len and size of msg_hdr and the length of mac and etk
-		print("len_msg_body: ", len(msg_body))
-		print("msg_len: ", msg_len)
-		print("size_msg_hdr: ", self.size_msg_hdr)
-		print("size_mac: ", self.size_mac)
-		print("size_etk: ", self.size_etk)
-
 		if len(msg_body) != msg_len - self.size_msg_hdr - len(_mac) - len(_etk): 
 			raise SiFT_MTP_Error('Incomplete message body reveived')
-		
-		# Printing the message type and the message body
-		print('msg_type: ', parsed_msg_hdr['typ'])
-		print('msg_body: ', msg_body.hex())
 
 		return parsed_msg_hdr['typ'], msg_body
 
@@ -290,7 +217,6 @@ class SiFT_MTP:
 			if 'aes_key' not in dir(self):
 				raise SiFT_MTP_Error('No session key variable available for creation')
 			if self.aes_key is None:
-				print('No session key, and use_temp_key - generating a new one')
 				self.aes_key = get_random_bytes(32)
 			_tk = self.aes_key
 		else:
@@ -298,30 +224,10 @@ class SiFT_MTP:
 				raise SiFT_MTP_Error('No session key available for encryption')
 			_tk = self.aes_key
 
-		# Printing the self.aes_key and its length
-		print("aes_key: ", self.aes_key.hex())
-		print("len_aes_key: ", len(self.aes_key))
-
-		# Printing the tk and its length
-		print("_tk: ", _tk.hex())
-		print("len_tk: ", len(_tk))
-
 		aes_gcm = AES.new(key= _tk, mode=AES.MODE_GCM, mac_len=12, nonce=_sqn+ranbytes) # nonce is the random bytes used here
-
-		# Printing out AAD
-		print("AAD: ", msg_hdr.hex())
-		print("len_AAD: ", len(msg_hdr))
 		
 		aes_gcm.update(msg_hdr)  # Add message header as AAD
 
-		# Printing the nonce and its length
-		print("nonce: ", (_sqn+ranbytes).hex())
-		print("len_nonce: ", len(_sqn+ranbytes))
-
-		# Update AES-GCM cipher with the message header
-		# aes_gcm.update(self.msg_hdr_ver + msg_type + b'\x00\x00' + _sqn + ranbytes + self.reserve_bytes)  # Placeholder for length
-
-		# print
   		# enc msg payload
 		_epd, _mac = aes_gcm.encrypt_and_digest(msg_payload) # Encrypt and generate MAC
 
